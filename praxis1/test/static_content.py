@@ -48,7 +48,9 @@ def main():
 
         for path in ['/static/other', '/static/anything', '/static/else']:
             conn.request('GET', path)
-            if conn.getresponse().status != 404:
+            reply = conn.getresponse()
+            reply.read()
+            if response.status != 404:
                 return EXIT_FAILURE
 
         return EXIT_SUCCESS

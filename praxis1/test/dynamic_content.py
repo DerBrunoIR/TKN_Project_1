@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import contextlib
+import random
 import re
 import subprocess
 from http.client import HTTPConnection
@@ -20,7 +21,6 @@ NullContext = contextlib.suppress
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
-buffer_size = 1024
 
 
 def main():
@@ -37,17 +37,39 @@ def main():
         conn = HTTPConnection('localhost', args.port, timeout=2)
         conn.connect()
 
-        conn.request('HEAD', '/index.html')
-        reply = conn.getresponse()
-        reply.read()
-        if reply.status != 501:
+        path = f'/dynamic/{random.randbytes(8).hex()}'
+        content = random.randbytes(32).hex().encode()
+
+        # Should not exist yet
+        conn.request('GET', path)
+        if conn.getresponse().status != 404:
             return EXIT_FAILURE
 
-        conn.request('GET', '/index.html')
-        reply = conn.getresponse()
-        reply.read()
-        if reply.status != 404:
+        # Create should succeed
+        conn.request('PUT', path, content)
+        if conn.getresponse().status not in {200, 202, 204}:
             return EXIT_FAILURE
+
+        # Content should exist and match
+        conn.request('GET', path)
+        response = conn.getresponse()
+        if response.status != 200 or response.read() != content:
+            return EXIT_FAILURE
+
+        # Delete should succeed
+        conn.request('DELETE', path, content)
+        if conn.getresponse().status not in {200, 202, 204}:
+            return EXIT_FAILURE
+
+        # Should not exist anymore
+        conn.request('GET', path)
+        if conn.getresponse().status != 404:
+            return EXIT_FAILURE
+
+        for path in ['/static/other', '/static/anything', '/static/else']:
+            conn.request('GET', path)
+            if conn.getresponse().status != 404:
+                return EXIT_FAILURE
 
         return EXIT_SUCCESS
 
