@@ -22,8 +22,8 @@ void handle_error(int non_error_cond, char* msg, const char* error) {
 	return;
 }
 
-// for non \0 terminated strings
 int count_substring(char* s, int s_len, char* sub, int sub_len) {
+	// for non \0 terminated strings
 	if (s_len < sub_len) return 0;
 	if (s_len == 0) return 0;
 	int count = 0;
@@ -120,20 +120,84 @@ int sendHttpPacket(int sockfd, char* payload, int size) {
 	return 0;
 }
 
+struct HttpPacket {
+	char* method;
+	char* uri;
+	char* version;
+	char** header;
+	char* payload;
+};
+
+struct HttpPacket* initHttpPacket(char* payload) {
+
+	//TODO fix this function
+	// find version
+	// find method
+	// list headers
+	// find payload
+	
+	struct HttpPacket *p = malloc(sizeof(struct HttpPacket));
+	p->method = strtok(payload, " ");
+	if (p->method == NULL) {
+		printf("ERROR::initHttpPacket::ParsingError::no method found\n");
+		return NULL;
+	}
+
+	p->uri = strtok(payload, " ");
+	if (p->uri == NULL) {
+		printf("ERROR::initHttpPacket::ParsingError::no uri found\n");
+		return NULL;
+	}
+
+	p->version = strtok(payload, CRLF);
+	if (p->version == NULL) {
+		printf("ERROR::initHttpPacket::ParsingError::no version found\n");
+		return NULL;
+	}
+
+	char* header = strtok(payload, CRLF);
+
+	p->payload = strtok(payload, CRLF);
+	if (p->payload == NULL) {
+		printf("ERROR::initHttpPacket::ParsingError::no payload found\n");
+		return NULL;
+	}
+
+	int header_count = 0;
+	while(strchr(header, '\n'))
+		header_count++;
+	printf("LOG::initHttpPacket Found %d headers\n", header_count);
+	p->header = malloc(header_count * sizeof(char*));
+	for (int i = 0; i < header_count; i++){
+		p->header[i] = strtok(header, "\n");
+		if (p->header[i] == NULL){
+			printf("ERROR::initHttpPacket::ParsingError::No header found\n");
+			return NULL;
+		}
+	}
+
+	return p;
+}
+
 int main(int argc, char** argv) {
 	int status = 0;
 
+	// program args
 	char* port;
 	handle_error(argc < 2, "ERROR::main::arguemnts %s\n", "Port parameter is undefined!");
 	if (argc <= 2)
 		port = argv[1];
 
+	// server
 	int my_sockfd = init_server_socket(port);
 	int con_sockfd = wait_and_connect(my_sockfd);
-	char* packet = receiveHttpPacket(con_sockfd);
-	printf("Data:\n%s", packet);
-	sendHttpPacket(con_sockfd, "Replay", 6);
-
+	char* payload = receiveHttpPacket(con_sockfd);
+	// handle packet
+	printf("Data:\n%s", payload);
+	sendHttpPacket(con_sockfd, "Replay\n", 7);
+	struct HttpPacket *packet = initHttpPacket(payload);
+	handle_error(packet==NULL, "ERROR::main::%s\n", "invalid http packet");
+	// teardown
 	close(my_sockfd);
 	close(con_sockfd);
 	free(packet);
