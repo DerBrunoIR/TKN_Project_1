@@ -19,6 +19,16 @@ void handle_error(int non_error_cond, char* msg) {
 	return;
 }
 
+// TODO: implement receiveHttp and sendHttp
+char* reveiveHttp(int port) {
+
+	return NULL;
+}
+
+int sendHttp(char* node, char* payload) {
+	return -1;
+}
+
 int main(int argc, char** argv) {
 	int status = 0;
 	char* port;
