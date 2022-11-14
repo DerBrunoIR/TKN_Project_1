@@ -11,7 +11,7 @@
 
 #define BACKLOG 1
 #define BUFFERSIZE 64
-#define CRLF "\n\r"
+#define CRLF "\r\n"
 #define log(x) printf("LOG::%s\n", x)
 
 void handle_error(int non_error_cond, char* msg, const char* error) {
@@ -24,21 +24,16 @@ void handle_error(int non_error_cond, char* msg, const char* error) {
 
 // for non \0 terminated strings
 int count_substring(char* s, int s_len, char* sub, int sub_len) {
-	return 1;
-	// TODO not working
-	if (s_len <= 0 || s_len < sub_len) return 0;
+	if (s_len < sub_len) return 0;
+	if (s_len == 0) return 0;
 	int count = 0;
 	int cur = 0;
-	for (char* c1 = s; c1 < s+s_len; s++) {
-		if (*c1 == sub[cur]) {
-			cur++;
-			if (cur == sub_len) {
-				cur = 0;
-				count++;
-			}
+	for (int i = 0; i < s_len; i++) {
+		for (int j = 0; j < sub_len; j++) {
+			if (s[i+j] != sub[j]) break;
+			if (j+1 == sub_len) count++;
 		}
 	}
-	
 	return count;
 }
 
@@ -97,6 +92,7 @@ char* receiveHttpPacket(int sockfd) {
 		if (remaining == 0) {
 			buffer = realloc(buffer, (cursize+BUFFERSIZE) * sizeof(char));
 			remaining = BUFFERSIZE;
+			buffer[cursize+BUFFERSIZE-1] = '\0';
 		}
 		log("receiveHttp::waiting for data");
 		status = recv(sockfd, buffer+cursize, remaining, 0);
@@ -141,5 +137,7 @@ int main(int argc, char** argv) {
 	close(my_sockfd);
 	close(con_sockfd);
 	free(packet);
+
 	return 0;
 }
+
