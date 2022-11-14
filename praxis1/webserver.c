@@ -22,8 +22,13 @@ void handle_error(int non_error_cond, char* msg) {
 int main(int argc, char** argv) {
 	int status = 0;
 	char* port;
-	if (argc >= 1) 
-		port = argv[0]; 
+	if (argc >= 2) {
+		port = argv[1]; 
+		printf("port number: %s\n", port);
+	} else {
+		printf("argument error: no port specified!\n");
+		exit(1);
+	}
 
 	// prepare socket creation
 	struct addrinfo hints;
@@ -39,12 +44,9 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 	
-	struct protoent *tcp = getprotobyname("tcp"); // tcp->p_proto should be 0
-	handle_error(tcp == NULL, "getprotobyname error: %s (may be wrong)\n");
-
 	// create socket
-	int socket_fd = socket(servinfo->ai_family, servinfo->ai_socktype, tcp->p_proto);
-	handle_error(socket_fd, "socket error: %s\n");
+	int socket_fd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+	handle_error(socket_fd == -1, "socket error: %s\n");
 	
 	// bind socket
 	status = bind(socket_fd, servinfo->ai_addr, servinfo->ai_addrlen);
@@ -57,7 +59,7 @@ int main(int argc, char** argv) {
 	struct addrinfo coninfo;
 	memset(&coninfo, 0, sizeof coninfo);
 	int con_socket_fd = accept(socket_fd, coninfo.ai_addr, &coninfo.ai_addrlen);
-	handle_error(con_socket_fd, "accept error: %s\n");
+	handle_error(con_socket_fd == -1, "accept error: %s\n");
 
 	// receive packet
 	int sum = 0;
