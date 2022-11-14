@@ -58,26 +58,31 @@ int main(int argc, char** argv) {
 
 	struct addrinfo coninfo;
 	memset(&coninfo, 0, sizeof coninfo);
+	printf("waiting for connection...\n");
 	int con_socket_fd = accept(socket_fd, coninfo.ai_addr, &coninfo.ai_addrlen);
 	handle_error(con_socket_fd == -1, "accept error: %s\n");
 
 	// receive packet
 	int sum = 0;
-	int buflen = 32;
+	int buflen = 5;
 	char* buf = malloc((buflen+1) * sizeof(char));
 	while (sum < buflen) {
-		status = recv(con_socket_fd, buf, buflen, 0);
+		printf("waiting for data...\n");
+		status = recv(con_socket_fd, buf+sum, buflen-sum, 0);
 		handle_error(status == -1, "recv error: %s\n");
 		sum += status;
 	}
 
 	// handle packet
+	buf[buflen-1] = '\0';
+	printf("data:\n");
 	printf(buf);
 	
 	// respond
 	
 	
 	// free all stuff
+	free(buf);
 	close(con_socket_fd);
 	close(socket_fd);
 	freeaddrinfo(servinfo);
