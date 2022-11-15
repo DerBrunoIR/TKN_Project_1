@@ -129,13 +129,10 @@ struct HttpPacket {
 };
 
 struct HttpPacket* initHttpPacket(char* payload) {
-
-	//TODO fix this function
 	// find version
 	// find method
 	// list headers
 	// find payload
-	
 	struct HttpPacket *p = malloc(sizeof(struct HttpPacket));
 	p->method = strtok(payload, " ");
 	if (p->method == NULL) {
@@ -143,33 +140,34 @@ struct HttpPacket* initHttpPacket(char* payload) {
 		return NULL;
 	}
 
-	p->uri = strtok(payload, " ");
+	p->uri = strtok(NULL, " ");
 	if (p->uri == NULL) {
 		printf("ERROR::initHttpPacket::ParsingError::no uri found\n");
 		return NULL;
 	}
 
-	p->version = strtok(payload, CRLF);
+	p->version = strtok(NULL, CRLF);
 	if (p->version == NULL) {
 		printf("ERROR::initHttpPacket::ParsingError::no version found\n");
 		return NULL;
 	}
 
-	char* header = strtok(payload, CRLF);
+	char* header = strtok(NULL, CRLF);
 
-	p->payload = strtok(payload, CRLF);
+	p->payload = strtok(NULL, CRLF);
 	if (p->payload == NULL) {
 		printf("ERROR::initHttpPacket::ParsingError::no payload found\n");
 		return NULL;
 	}
 
+	// TODO how two headers separated?
 	int header_count = 0;
 	while(strchr(header, '\n'))
 		header_count++;
 	printf("LOG::initHttpPacket Found %d headers\n", header_count);
 	p->header = malloc(header_count * sizeof(char*));
 	for (int i = 0; i < header_count; i++){
-		p->header[i] = strtok(header, "\n");
+		p->header[i] = strtok((i==0)?header:NULL, "\n");
 		if (p->header[i] == NULL){
 			printf("ERROR::initHttpPacket::ParsingError::No header found\n");
 			return NULL;
