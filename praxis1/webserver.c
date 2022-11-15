@@ -54,6 +54,9 @@ int init_server_socket(char* port) {
 	// socket
 	int socket_fd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
 	handle_error(socket_fd == -1, "ERROR::init_server_socket::socket %s\n", strerror(errno));
+	// make port reusable
+	status = setsockopt(socket_fd, servinfo->ai_socktype, SO_REUSEADDR, &(int){1}, sizeof(int));
+	handle_error(status<0, "ERROR::init_server_socket::setsockopt::%s\n", "Make socket reuasble faild");
 
 	// bind
 	status = bind(socket_fd, servinfo->ai_addr, servinfo->ai_addrlen);
@@ -81,6 +84,7 @@ int wait_and_connect(int sockfd) {
 }
 
 char* receiveHttpPacket(int sockfd) {
+	// TODO CRLF count is dynamic, a empty line with CRLF represents the eof.
 	int status = 0;
 
 	// receive packet
@@ -160,7 +164,7 @@ struct HttpPacket* initHttpPacket(char* payload) {
 		return NULL;
 	}
 
-	// TODO how two headers separated?
+	// TODO fix header recognition (CRLF separated)
 	int header_count = 0;
 	while(strchr(header, '\n'))
 		header_count++;
