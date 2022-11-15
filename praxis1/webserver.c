@@ -12,14 +12,15 @@
 #define BACKLOG 1
 #define BUFFERSIZE 64
 #define CRLF "\r\n"
+#define CRLF_LEN 2
+#define CRLFCRLF "\r\n\r\n"
+#define CRLFCRLF_LEN 4
 #define log(x) printf("LOG::%s\n", x)
 
 void handle_error(int non_error_cond, char* msg, const char* error) {
-	if (non_error_cond != 0) {
-		fprintf(stderr, msg, error);
-		exit(1);
-	}
-	return;
+	if (non_error_cond == 0) return;
+	fprintf(stderr, msg, error);
+	exit(1);
 }
 
 int count_substring(char* s, int s_len, char* sub, int sub_len) {
@@ -84,15 +85,14 @@ int wait_and_connect(int sockfd) {
 }
 
 char* receiveHttpPacket(int sockfd) {
-	// TODO CRLF count is dynamic, a empty line with CRLF represents the eof.
 	int status = 0;
 
 	// receive packet
 	char* buffer = malloc(0);
 	int cursize = 0;
 	int remaining = 0;
-	int crlf_count = 0;
-	while (crlf_count < 3) {
+	int stop = 0;
+	while (stop == 0) {
 		if (remaining == 0) {
 			buffer = realloc(buffer, (cursize+BUFFERSIZE) * sizeof(char));
 			remaining = BUFFERSIZE;
@@ -102,9 +102,9 @@ char* receiveHttpPacket(int sockfd) {
 		status = recv(sockfd, buffer+cursize, remaining, 0);
 		handle_error(status == -1, "ERROR:receiveHttp::recv %s\n", strerror(errno));
 		remaining -= status;
-		crlf_count += count_substring(buffer+cursize, status, CRLF, 2);
+		stop += count_substring(buffer+cursize, status, CRLFCRLF, CRLFCRLF_LEN);
 		cursize += status;
-		printf("received %d bytes\n", status);
+		printf("LOG::receiveHttp::received %d bytes\n", status);
 	}
 	cursize++;
 	buffer = realloc(buffer, cursize * sizeof(char));
@@ -155,29 +155,19 @@ struct HttpPacket* initHttpPacket(char* payload) {
 		printf("ERROR::initHttpPacket::ParsingError::no version found\n");
 		return NULL;
 	}
-
-	char* header = strtok(NULL, CRLF);
-
-	p->payload = strtok(NULL, CRLF);
-	if (p->payload == NULL) {
-		printf("ERROR::initHttpPacket::ParsingError::no payload found\n");
-		return NULL;
-	}
-
-	// TODO fix header recognition (CRLF separated)
-	int header_count = 0;
-	while(strchr(header, '\n'))
-		header_count++;
-	printf("LOG::initHttpPacket Found %d headers\n", header_count);
+	
+	char* header = strtok(NULL, CRLFCRLF);
+	int header_count = count_substring(header, strlen(header), CRLF, CRLF_LEN)+1;
+	// split header
 	p->header = malloc(header_count * sizeof(char*));
 	for (int i = 0; i < header_count; i++){
-		p->header[i] = strtok((i==0)?header:NULL, "\n");
+		p->header[i] = strtok((i==0)?header:NULL, CRLF);
 		if (p->header[i] == NULL){
 			printf("ERROR::initHttpPacket::ParsingError::No header found\n");
 			return NULL;
 		}
 	}
-
+	
 	return p;
 }
 
