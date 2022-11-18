@@ -79,6 +79,7 @@ int pathcmp(const char* a, const char* b) {
 	 * returns: number of equal nodes
 	 */
 	// TODO
+	assertZero(1, "ERROR::pathcmp::Not implemented!");
 	return 0;
 }
 
@@ -163,7 +164,7 @@ char* firstCharNotInSubstring(char* str, const char* sub) {
 	/* Function: firstCharNotInSubstring
 	 * ---------------------------------
 	 *  firstCharNotInSubstring finds the location of the first character which isn't part of the given set
-	 *  char* str: searched string
+	 *  char* str: string to search in 
 	 *  char* sub: set of characters 
 	 *  returns: pointer to the character not present in sub
 	 *  onerror: NULL is returned if strlen(str) == 0
@@ -468,12 +469,12 @@ void freeHttpResp(HttpResp* p) {
 	return;
 }
 
-int initRespPayload(char* res, HttpResp* p, char* sep) {
+int initRespPayload(char** str_ptr, HttpResp* p, char* sep) {
 	/* Function: initStringBuffer
 	 * --------------------------------
 	 *  initStringBuffer creates string buffer from the given HTTP packet structure.
 	 *  HttpReq* p: HTTP packet
-	 *  char* res: allocated string
+	 *  char* str_ptr: pointer to allocated string
 	 *  char* sep: seperator string between payload lines.
 	 *  returns: allocated string buffer
 	 */
@@ -481,33 +482,34 @@ int initRespPayload(char* res, HttpResp* p, char* sep) {
 	int hasPayload = p->payload != NULL;
 	int arr_len = 1 + p->header_count + hasPayload;
 	char** arr = calloc(arr_len, sizeof(char**));
+	
+	// first line
+	char** tmp = malloc(3 * sizeof(char*));
+	tmp[0] = p->version;
+	tmp[1] = p->status;
+	tmp[2] = p->reason;
+	arr[0] = malloc(0);
+	joinStrings(&arr[0], (const char**) tmp, 3, " ");
+	free(tmp);
 
-	char* info = malloc(0);
-	char** f = malloc(3 * sizeof(char*));
-	f[0] = p->version;
-	f[1] = p->status;
-	f[2] = p->reason;
-	joinStrings(&info, (const char**) f, 3, " ");
-	arr[0] = info;
-
-	// Header
+	// Headers
 	int i = 0;
-	for (; i < p->header_count; i++) {
-		char* tmp = malloc(0);
-		char** s = malloc(2 * sizeof(char));
-		s[0] = p->headers[i]->key;
-		s[1] = p->headers[i]->value;
-		joinStrings(&tmp, (const char**) s, 2, ":"); 
-		arr[i+1] = tmp;
+	for (int i = 0; i < p->header_count; i++) {
+		arr[i+1] = malloc(0);
+		tmp = malloc(2 * sizeof(char));
+		tmp[0] = p->headers[i]->key;
+		tmp[1] = p->headers[i]->value;
+		joinStrings(&arr[i+1], (const char**) tmp, 2, ":"); 
+		free(tmp);
 	}
 	// Payload
 	if (hasPayload)
 		arr[i+1] = p->payload;
-	joinStrings(&res, (const char**) arr,  arr_len, sep);
+	joinStrings(str_ptr, (const char**) arr,  arr_len, sep);
 
-	for (int i = 0; i < arr_len; i++)
-		if (arr[i] != NULL)
-			free(arr[i]);
+	free(arr[0]);
+	for (i = 0; i < p->header_count; i++)
+		free(arr[i+1]);
 	free(arr);
 
 	return 0;
@@ -638,6 +640,7 @@ int main(int argc, char** argv) {
 		else {
 			HttpReq* req = allocateHttpReq();
 			initHttpReq(req, payload);
+			LOG(LV_OUTPUT, "received request: \n%s\n", payload);
 			resp = allocateHttpResp();
 			
 			Resource r = {req->uri, req->payload};
@@ -693,8 +696,8 @@ int main(int argc, char** argv) {
 		free(payload);
 		payload = malloc(0);
 		LOG(LV_OUTPUT, "initializing payload");
-		initRespPayload(payload, resp, CRLF);
-		LOG(LV_OUTPUT, "sending payload");
+		initRespPayload(&payload, resp, CRLF);
+		LOG(LV_OUTPUT, "sending payload:\n%s\n", payload);
 		sendHttpPayload(con_sockfd, payload, strlen(payload));
 		// free
 		free(payload);
