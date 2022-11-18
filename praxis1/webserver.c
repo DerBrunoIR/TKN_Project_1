@@ -1,6 +1,7 @@
 
 // TODO's
 // implement pathcmp and replace strcmp
+// mybe update receiveHttpReq, payload couldn't end with CRLF but is separated with 2*CRLF
 // fix bugs
 
 // BUGS:
