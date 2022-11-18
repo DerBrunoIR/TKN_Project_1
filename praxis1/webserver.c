@@ -1,3 +1,14 @@
+
+// TODO's
+// implement pathcmp and replace strcmp
+// fix bugs
+
+// BUGS:
+// Symptom, error message, how to reproduce
+// ServerCrash after first response: "corrupted size vs. prev_size", ./webserver 1234, SEND get-static-foo 
+//
+
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +28,7 @@
 #define CRLFCRLF_LEN 4
 #define isLetter(x) (('A' <= x && x <= 'Z') || ('a' <= x && x <= 'z'))
 #define isNumber(x) ('0' <= x && x <= '9')
-#define LOGLEVEL -1
+#define LOGLEVEL 0
 #define LV_OUTPUT 0
 #define LV_DEBUG 1
 #define HTTP_VERSION "HTTP/1.1"
@@ -60,7 +71,7 @@
 
 #define LOG(level, msg, args...) \
 	{\
-		if (level >= LOGLEVEL) {\
+		if (level <= LOGLEVEL) {\
 			printf("LOG::");\
 			printf(msg, ##args);\
 			printf("\n");\
@@ -540,6 +551,9 @@ int initRespPayload(char** str_ptr, HttpResp* p, char* sep) {
 		free(arr[i+1]);
 	free(arr);
 
+	// add CRLF to the end of the payload
+	concatenate(str_ptr, CRLF);
+
 	return 0;
 }
 
@@ -635,14 +649,18 @@ void freeResourceArray(Resource* arr) {
 }
 
 void printPayload(const char* payload) {
-	int n = 23;
-	for (int i = 0; i < n; i++)
-		printf("#");
+	int n = 9; // Primezahl
+	printf("\n");
+	for (int i = 0; i < n; i++) printf("#");
+	printf(" Payload ");
+	for (int i = 0; i < n; i++) printf("#");
 	printf("\n");
 	printf("%s", payload);
 	printf("\n");
-	for (int i = 0; i < n; i++)
-		printf("#");
+	for (int i = 0; i < n; i++) printf("#");
+	printf(" --END-- ");
+	for (int i = 0; i < n; i++) printf("#");
+	printf("\n");
 	printf("\n");
 }
 
@@ -676,8 +694,10 @@ int main(int argc, char** argv) {
 
 		// Logic tree
 		LOG(LV_OUTPUT, "waiting for new connection");
-		if (receiveHttpReq(payload, con_sockfd) != 0)
+		if (receiveHttpReq(payload, con_sockfd) != 0){
+			LOG(LV_OUTPUT, "got invalid request, returning 404");
 			resp = resp_client_error;
+		}
 		else {
 			// build request
 			HttpReq* req = allocateHttpReq();
