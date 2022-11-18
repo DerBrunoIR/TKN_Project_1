@@ -70,10 +70,31 @@
 
 // string functions
 
-int itoa(char* str, int num) {
+int pathcmp(const char* a, const char* b) {
+	/* Function: pathcmp
+	 * -----------------
+	 * compare two paths from left to right
+	 * const char* a:
+	 * const char* b:
+	 * returns: number of equal nodes
+	 */
+	// TODO
+	return 0;
+}
+
+int itoa(char** str_ptr, int num) {
+	/* Function: itoa
+	 * --------------
+	 *  write an integer into the given string.
+	 *  char** str_ptr: pointer to string
+	 *  int num: number to convert
+	 *  returns: 0
+	 */
 	int i = 0; 
+	char* str = *str_ptr;
 	while (num != 0) {
-		str = realloc(str, (i+1) * sizeof(char));
+		*str_ptr = realloc(*str_ptr, (i+1) * sizeof(char));
+		str = *str_ptr;
 		int digit = num % 10;
 		num /= 10;
 		str[i] = '0' + digit;
@@ -84,32 +105,41 @@ int itoa(char* str, int num) {
 		str[j] = str[i-j];
 		str[i-j] = tmp;
 	}
-	str = realloc(str, (i+1) * sizeof(char));
+	*str_ptr = realloc(*str_ptr, (i+1) * sizeof(char));
+	str = *str_ptr;
 	str[i] = '\0';
 	return 0;
 }
 
-int joinStrings(char** res, const char** s, const int s_len, const char* del) {
+int joinStrings(char** str_ptr, const char** s, const int s_len, const char* del) {
 	/* Function: joinStrings
 	 * ----------------------
 	 * joinStrings joins strings with a delimiter between each other.
+	 * char** str_ptr: pointer to allocated string, which will be reallocated
 	 * const char** s: array of stirngs to be joined
 	 * const int s_len: length of (const char**) s
 	 * const char* del: delimiter 
 	 * returns: 0
 	 */
+	if (str_ptr == NULL)
+		return 1;
 	int len = 0;
+	int null_count = 0;
 	int del_len = strlen(del);
 	// calc new string size
-	for (int i = 0; i < s_len; i++)
+	for (int i = 0; i < s_len; i++) {
+		if (s[i] == NULL) {
+			null_count++;
+			continue;
+		}
 		len += strlen(s[i]);
-	len += (s_len-1) * del_len;
-	// TODO fix this
-	*res = realloc(*res,(len+1) * sizeof(char));
-	if (res == NULL)
-		return 1;
-	char* loc = *res;
+	}
+	len += (s_len-1-null_count) * del_len;
+	*str_ptr = realloc(*str_ptr,(len+1) * sizeof(char));
+	char* loc = *str_ptr;
 	for (int i = 0; i < s_len-1; i++) {
+		if (s[i] == NULL)
+			continue;
 		strcpy(loc, s[i]);
 		loc += strlen(s[i]);
 		strcpy(loc, del);
@@ -118,6 +148,15 @@ int joinStrings(char** res, const char** s, const int s_len, const char* del) {
 	strcpy(loc, s[s_len-1]);
 	loc += strlen(s[s_len-1]);
 	return 0;
+}
+
+int concatenate(char** str_ptr, int size, const char* append) {
+	int other_len = strlen(append);
+	size += other_len;
+	*str_ptr = realloc(*str_ptr, size * sizeof(char));
+	strncat(*str_ptr, append, other_len);
+	return 0;
+
 }
 
 char* firstCharNotInSubstring(char* str, const char* sub) {
@@ -438,9 +477,9 @@ int initRespPayload(char* res, HttpResp* p, char* sep) {
 	 *  char* sep: seperator string between payload lines.
 	 *  returns: allocated string buffer
 	 */
-	int hasPayload = p->payload != NULL;
 	int status = 0;
-	int arr_len = p->header_count + 1 + hasPayload;
+	int hasPayload = p->payload != NULL;
+	int arr_len = 1 + p->header_count + hasPayload;
 	char** arr = calloc(arr_len, sizeof(char**));
 
 	char* info = malloc(0);
@@ -466,14 +505,22 @@ int initRespPayload(char* res, HttpResp* p, char* sep) {
 		arr[i+1] = p->payload;
 	joinStrings(&res, (const char**) arr,  arr_len, sep);
 
-	for (int i = 0; i < i+1; i++)
-		free(arr[i]);
+	for (int i = 0; i < arr_len; i++)
+		if (arr[i] != NULL)
+			free(arr[i]);
 	free(arr);
 
 	return 0;
 }
 
 int findHeaderHttpResp(HttpResp* resp, Header *h) {
+	/* Function: findHeaderHttpResp
+	 * ----------------------------
+	 *  checks if the given HTTP response contains a header with a certain key
+	 *  HttpResp* resp:
+	 *  Header *h:
+	 *  returns: -1 if nothing is found otherwise the index
+	 */
 	for (int i = 0; i < resp->header_count; i++) {
 		if (strcmp(resp->headers[i]->key, h->key) == 0)
 			return i;
@@ -482,6 +529,13 @@ int findHeaderHttpResp(HttpResp* resp, Header *h) {
 }
 
 int addHeaderHttpResp(HttpResp* resp, Header *h) {
+	/* Fucntion: addHeaderHttpResp
+	 * ---------------------------
+	 *  add a header to a given HTTP response
+	 *  HttpResp* resp: 
+	 *  Header *h: 
+	 *  returns: 0
+	 */
 	resp->header_count++;
 	resp->headers = realloc(resp->headers, resp->header_count);
 	resp->headers[resp->header_count-1] = h;
@@ -489,10 +543,18 @@ int addHeaderHttpResp(HttpResp* resp, Header *h) {
 }
 
 int setPayloadHttpResp(HttpResp* resp, char* payload) {
+	/* Function: setPayloadHttpResp
+	 * ----------------------------
+	 *  add a payload to a HTTP response.
+	 *  HttpResp* resp: Responses
+	 *  char* payload: payload
+	 *  returns: 0
+	 */
+	// add Content-Lenght Header
 	Header* h = allocateHeader();
-	h->key = "Content-Type";
+	h->key = "Content-Length";
 	h->value = malloc(0);
-	itoa(h->value, strlen(payload));
+	itoa(&h->value, strlen(payload));
 	int idx = findHeaderHttpResp(resp, h);
 	if (idx >= 0) {
 		resp->headers[idx]->value = h->value;
@@ -500,6 +562,8 @@ int setPayloadHttpResp(HttpResp* resp, char* payload) {
 	}
 	else
 		addHeaderHttpResp(resp, h);
+	// set new payload
+	resp->payload = payload;
 	return 0;
 }
 
