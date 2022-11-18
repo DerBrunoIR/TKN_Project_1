@@ -70,6 +70,16 @@
 
 // string functions
 
+char* allocateEmptyString() {
+	char* s = malloc(1);
+	s[0] = '\0';
+	return s;
+}
+
+void freeString(char* s) {
+	free(s);
+}
+
 int pathcmp(const char* a, const char* b) {
 	/* Function: pathcmp
 	 * -----------------
@@ -91,24 +101,29 @@ int itoa(char** str_ptr, int num) {
 	 *  int num: number to convert
 	 *  returns: 0
 	 */
+	// convert num into reversed ascii representation
 	int i = 0; 
 	char* str = *str_ptr;
 	while (num != 0) {
 		*str_ptr = realloc(*str_ptr, (i+1) * sizeof(char));
 		str = *str_ptr;
+
 		int digit = num % 10;
 		num /= 10;
 		str[i] = '0' + digit;
 		i++;
 	}
+	// reverse string
 	for (int j = 0; j < i/2; j++) {
 		char tmp = str[j];
 		str[j] = str[i-j];
 		str[i-j] = tmp;
 	}
+	// add '\0'
 	*str_ptr = realloc(*str_ptr, (i+1) * sizeof(char));
 	str = *str_ptr;
 	str[i] = '\0';
+
 	return 0;
 }
 
@@ -136,7 +151,9 @@ int joinStrings(char** str_ptr, const char** s, const int s_len, const char* del
 		len += strlen(s[i]);
 	}
 	len += (s_len-1-null_count) * del_len;
+	// resize string
 	*str_ptr = realloc(*str_ptr,(len+1) * sizeof(char));
+	// join strings
 	char* loc = *str_ptr;
 	for (int i = 0; i < s_len-1; i++) {
 		if (s[i] == NULL)
@@ -151,11 +168,19 @@ int joinStrings(char** str_ptr, const char** s, const int s_len, const char* del
 	return 0;
 }
 
-int concatenate(char** str_ptr, int size, const char* append) {
-	int other_len = strlen(append);
-	size += other_len;
-	*str_ptr = realloc(*str_ptr, size * sizeof(char));
-	strncat(*str_ptr, append, other_len);
+int concatenate(char** str_ptr, const char* a) {
+	/* Function: concatenate
+	 * ---------------------
+	 *  append strings to each other
+	 *  char** str_ptr: pointer to allocated string
+	 *  const char* a: string to append
+	 *  returns: 0
+	 */
+	int len = strlen(*str_ptr);
+	int other_len = strlen(a);
+	int new_len = len + other_len;
+	*str_ptr = realloc(*str_ptr, new_len * sizeof(char));
+	strncat(*str_ptr, a, other_len);
 	return 0;
 
 }
@@ -258,7 +283,7 @@ int wait_and_connect(const int sockfd) {
 
 	// accept
 	LOG(LV_DEBUG, "wait_and_connect::waiting for connection...");
-	struct addrinfo coninfo;
+	struct addrinfo coninfo = {0};
 	int con_socket_fd = accept(sockfd, coninfo.ai_addr, &coninfo.ai_addrlen);
 	assertZero(con_socket_fd==-1, "ERROR::setup_connection::accept %s\n", strerror(errno));
 
@@ -405,7 +430,7 @@ HttpReq* allocateHttpReq() {
 int initHttpReq(HttpReq* p, const char* payload) {
 	/* Function: initHttpReq
 	 * ------------------------
-	 *  initHttpReq builds an HttpReq structure from a given payload. Invalid headers are assumed to be the payload.
+	 *  initHttpReq builds an HttpReq structure from a given payload. The last invalid header is assumed to be the payload.
 	 * char* payload: string buffer, ending with a CRLFCRLF
 	 * HttpReq* p: allocated HttpReq strucutre
 	 * returns: 0 if successfull, 1 if no method is found, 2 if no uri is found, 3 if no version is found.
@@ -488,14 +513,14 @@ int initRespPayload(char** str_ptr, HttpResp* p, char* sep) {
 	tmp[0] = p->version;
 	tmp[1] = p->status;
 	tmp[2] = p->reason;
-	arr[0] = malloc(0);
+	arr[0] = allocateEmptyString();
 	joinStrings(&arr[0], (const char**) tmp, 3, " ");
 	free(tmp);
 
 	// Headers
 	int i = 0;
 	for (int i = 0; i < p->header_count; i++) {
-		arr[i+1] = malloc(0);
+		arr[i+1] = allocateEmptyString();
 		tmp = malloc(2 * sizeof(char));
 		tmp[0] = p->headers[i]->key;
 		tmp[1] = p->headers[i]->value;
@@ -504,9 +529,12 @@ int initRespPayload(char** str_ptr, HttpResp* p, char* sep) {
 	}
 	// Payload
 	if (hasPayload)
-		arr[i+1] = p->payload;
+		arr[i+2] = p->payload;
+
+	// write joined strings into str_ptr
 	joinStrings(str_ptr, (const char**) arr,  arr_len, sep);
 
+	// free
 	free(arr[0]);
 	for (i = 0; i < p->header_count; i++)
 		free(arr[i+1]);
@@ -555,7 +583,7 @@ int setPayloadHttpResp(HttpResp* resp, char* payload) {
 	// add Content-Lenght Header
 	Header* h = allocateHeader();
 	h->key = "Content-Length";
-	h->value = malloc(0);
+	h->value = allocateEmptyString();
 	itoa(&h->value, strlen(payload));
 	int idx = findHeaderHttpResp(resp, h);
 	if (idx >= 0) {
@@ -608,14 +636,14 @@ void freeResourceArray(Resource* arr) {
 
 // main 
 int main(int argc, char** argv) {
-	LOG(LV_OUTPUT,"Starting webserver");
+	// init arguemnts
 	int status = 0;
 	char* port;
-	assertZero(argc < 2, "ERROR::main::arguemnts %s\n", "Port parameter is undefined!");
-	if (argc <= 2)
-		port = argv[1];
+	assertEqual(argc, 2, "ERROR::main::argument error!\n%s [port]\n", argv[0]);
+	port = argv[1];
+	LOG(LV_OUTPUT,"Starting webserver on port '%s'", port);
 
-
+	// create dynamic resource storage
 	Resource* dynamic_content = allocateResourceArray();
 	int dynamic_count = 0;
 
@@ -624,60 +652,70 @@ int main(int argc, char** argv) {
 	resp_client_error->version = HTTP_VERSION;
 	resp_client_error->status = "400";
 
-	// setup server
-	LOG(LV_OUTPUT,"Creating socket");
-	int my_sockfd = init_server_socket(port);
-
 	while (1) {
+		// setup server
+		LOG(LV_OUTPUT,"Creating socket");
+		int my_sockfd = init_server_socket(port);
+
+		// setup connection
 		int con_sockfd = wait_and_connect(my_sockfd);
 		HttpResp* resp;
-		char* payload = malloc(0);
+		char* payload = allocateEmptyString();
 
 		// Logic tree
 		LOG(LV_OUTPUT, "waiting for new connection");
 		if (receiveHttpReq(payload, con_sockfd) != 0)
 			resp = resp_client_error;
 		else {
+			// build request
 			HttpReq* req = allocateHttpReq();
 			initHttpReq(req, payload);
 			LOG(LV_OUTPUT, "received request: \n%s\n", payload);
 			resp = allocateHttpResp();
 			
+			// build response
 			Resource r = {req->uri, req->payload};
 			resp->version = "HTTP/1.1";
 			resp->reason = "OK";
 			if (strcmp(req->method, "GET") == 0) {
 				resp->status = "204";
-				// static test
 				if (strncmp(req->uri, "static/", 7) == 0) {
 					resp->status = "200";
-					if (strcmp(req->uri, "static/foo") == 0)
+					if (strcmp(req->uri, "static/foo") == 0){
 						setPayloadHttpResp(resp, "Foo");
-					else if (strcmp(req->uri, "static/bar"))
+					}
+					else if (strcmp(req->uri, "static/bar")){
 						setPayloadHttpResp(resp, "Bar");
-					else if (strcmp(req->uri, "static/baz"))
+					}
+					else if (strcmp(req->uri, "static/baz")){
 						setPayloadHttpResp(resp, "Baz");
-					else 
+					}
+					else {
 						resp->status = "404";
+					}
 				}
 				else if (strncmp(req->uri, "dynamic/", 8) == 0) {
 					int idx = findResource(dynamic_content, dynamic_count, r.path);
 					if (idx >= 0) {
 						setPayloadHttpResp(resp, dynamic_content[idx].data);
 					} 
-					else
+					else {
 						resp->status = "403";
+					}
 				}
-				else 
+				else {
 					resp->status = "404";
+				}
 			}
 			else if (strcmp(req->method, "PUT") == 0) {
 				if (strncmp(req->uri, "dynamic/", 8) == 0) {
 					int idx = findResource(dynamic_content, dynamic_count, r.path);
-					if (idx >= 0)
+					if (idx >= 0) {
 						dynamic_content[idx] = r;
-					else
+					}
+					else {
 						addResource(dynamic_content, dynamic_count, r);
+					}
 				}
 			}
 			else if (strcmp(req->method, "DELETE") == 0) {
@@ -687,27 +725,32 @@ int main(int argc, char** argv) {
 						removeResource(dynamic_content, dynamic_count, idx);
 				}
 			}
-			else
+			else {
 				resp->status = "501";
+			}
 
 			freeHttpReq(req);
 		}
-		// send 
-		free(payload);
-		payload = malloc(0);
+		// LOGIC TREE END
+
+		// build response payload
+		memset(payload, '\0', strlen(payload));
+		payload = realloc(payload, 1);
 		LOG(LV_OUTPUT, "initializing payload");
 		initRespPayload(&payload, resp, CRLF);
 		LOG(LV_OUTPUT, "sending payload:\n%s\n", payload);
+
+		// send response
 		sendHttpPayload(con_sockfd, payload, strlen(payload));
+
 		// free
+		LOG(LV_OUTPUT,"teardown");
 		free(payload);
 		freeHttpResp(resp);
 		close(con_sockfd);
+		close(my_sockfd);
+		break;
 	} 
-
-	// teardown
-	LOG(LV_OUTPUT,"Teardown");
-	close(my_sockfd);
 
 	return 0;
 }
