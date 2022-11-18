@@ -634,6 +634,18 @@ void freeResourceArray(Resource* arr) {
 	free(arr);
 }
 
+void printPayload(const char* payload) {
+	int n = 23;
+	for (int i = 0; i < n; i++)
+		printf("#");
+	printf("\n");
+	printf("%s", payload);
+	printf("\n");
+	for (int i = 0; i < n; i++)
+		printf("#");
+	printf("\n");
+}
+
 // main 
 int main(int argc, char** argv) {
 	// init arguemnts
@@ -670,7 +682,7 @@ int main(int argc, char** argv) {
 			// build request
 			HttpReq* req = allocateHttpReq();
 			initHttpReq(req, payload);
-			LOG(LV_OUTPUT, "received request: \n%s\n", payload);
+			printPayload(payload);
 			resp = allocateHttpResp();
 			
 			// build response
@@ -738,7 +750,7 @@ int main(int argc, char** argv) {
 		payload = realloc(payload, 1);
 		LOG(LV_OUTPUT, "initializing payload");
 		initRespPayload(&payload, resp, CRLF);
-		LOG(LV_OUTPUT, "sending payload:\n%s\n", payload);
+		printPayload(payload);
 
 		// send response
 		sendHttpPayload(con_sockfd, payload, strlen(payload));
