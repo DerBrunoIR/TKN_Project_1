@@ -761,7 +761,6 @@ int main(int argc, char** argv) {
 		freeHttpResp(resp);
 		close(con_sockfd);
 		close(my_sockfd);
-		break;
 	} 
 
 	return 0;
