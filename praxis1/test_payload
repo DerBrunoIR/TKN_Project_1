@@ -1,4 +1,7 @@
 GET /home/usr HTTP/1.1
 Host: example.com
+Content-Type: html
+Content-Length: 123
+
 This is a payload
 

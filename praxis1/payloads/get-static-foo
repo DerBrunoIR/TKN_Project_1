@@ -1,0 +1,2 @@
+GET static/foo HTTPS/1.1
+
