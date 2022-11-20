@@ -216,30 +216,6 @@ char* firstCharNotInSubstring(char* str, const char* sub) {
 	return NULL;
 }
 
-int count_substring(const char* s, const int s_len, const char* sub, const int sub_len) {
-	/* Function: count_substring
-	 * -------------------------
-	 *  count_substring counts how often another string exist inside the first string. Both strings do not need to be terminated by '\0'.
-	 *  char* s: string in which to search
-	 *  int s_len: length of the first_string
-	 *  char* sub: string which will be searched
-	 *  int sub_len: sub length
-	 *  returns: number of sub in s 
-	 */
-	// for non \0 terminated strings
-	if (s_len < sub_len) return 0;
-	if (s_len == 0) return 0;
-	int count = 0;
-	int cur = 0;
-	for (int i = 0; i < s_len; i++) {
-		for (int j = 0; j < sub_len; j++) {
-			if (s[i+j] != sub[j]) break;
-			if (j+1 == sub_len) count++;
-		}
-	}
-	return count;
-}
-
 // socket functions
 
 int init_server_socket(const char* port) {
@@ -302,68 +278,6 @@ int wait_and_connect(const int sockfd) {
 	return con_socket_fd;
 }
 
-// http functions
-int receiveHttpReq(char* buffer, const int sockfd) {
-	/* Fucntion: receiveHttpReq
-	 * ---------------------------
-	 *  receiveHttpReq receives an HTTP packet with a connected socket
-	 *  int sockfd: connected socket filedescriptor
-	 *  buffer: reallocatable string with size 0
-	 *  returns: 0 if successfull else 1
-	 *  onerror: if the connection is interrupted NULL is returned
-	 *
-	 */
-	int status = 0;
-
-	// receive packet
-	int cursize = 0;
-	int remaining = 0;
-	int stop = 0;
-	while (stop == 0) {
-		if (remaining == 0) {
-			buffer = realloc(buffer, (cursize+BUFFERSIZE) * sizeof(char));
-			remaining = BUFFERSIZE;
-			buffer[cursize+BUFFERSIZE-1] = '\0';
-		}
-		LOG(LV_DEBUG, "receiveHttp::waiting for data");
-		status = recv(sockfd, buffer+cursize, remaining, 0);
-		if (status == 0) {
-			LOG(LV_DEBUG, "receiveHttp::received zero bytes, no more bytes will be received");
-			return 1;
-		}
-		assertZero(status == -1, "ERROR:receiveHttp::recv %s\n", strerror(errno));
-		remaining -= status;
-		cursize += status;
-		stop += count_substring(buffer, cursize, CRLFCRLF, CRLFCRLF_LEN);
-		LOG(LV_DEBUG, "receiveHttpReq received %d bytes", status);
-	}
-	cursize++;
-	buffer = realloc(buffer, cursize * sizeof(char));
-	buffer[cursize-1] = '\0';
-	
-	return 0;
-}
-
-int sendHttpPayload(const int sockfd, const char* payload,const int size) {
-	/* Function: sendHttpPayload
-	 * ------------------------
-	 *  sends a http packet to the socket connected with the given socket
-	 *  int sockfd: connected scoket
-	 *  char* payload: string buffer representing the HTTP packet to send
-	 *  int size: amount of bytes to send
-	 *  returns: 0
-	 *  onerror: 
-	 */
-	int status = 0;
-	int sum = 0;
-	while (sum < size) {
-		status = send(sockfd, payload, size-sum, 0);
-		assertZero(status == -1, "ERRRO::sendHttpPayload %s\n", strerror(errno));
-		sum += status;
-	}
-	return 0;
-}
-
 typedef struct Header_t {
 	char* key;
 	char* value;
@@ -376,6 +290,7 @@ typedef struct HttpReq_t {
 	int header_count;
 	Header** headers;
 	char* payload;
+	int error;
 } HttpReq;
 
 typedef struct HttpResp_t {
@@ -427,33 +342,32 @@ void freeHeader(Header* h) {
 
 HttpResp* allocateHttpResp() {
 	HttpResp* p = calloc(1, sizeof(HttpResp));
-	p->headers = malloc(0);
+	p->headers = malloc(sizeof(char*));
 	assertZero(p==NULL||p->headers==NULL, "ERROR::allocateHttpResp::couldn't allocate HttpResp\n");
 	return p;
 }
 
 HttpReq* allocateHttpReq() {
 	HttpReq* p = calloc(1, sizeof(HttpReq));
-	p->headers = malloc(0);
+	p->headers = malloc(sizeof(char*));
 	assertZero(p==NULL||p->headers==NULL, "ERROR::allocateHttpReq::couldn't allocate HttpReq\n");
 	return p;
 }
 
-int initHttpReq(HttpReq* p, const char* payload) {
+int initHttpReq(HttpReq* p, const char* buffer) {
 	/* Function: initHttpReq
 	 * ------------------------
-	 *  initHttpReq builds an HttpReq structure from a given payload. The last invalid header is assumed to be the payload.
-	 * char* payload: string buffer, ending with a CRLFCRLF
+	 *  initHttpReq builds an HttpReq structure from a given buffer. The last invalid header is assumed to be the payload.
+	 * char* buffer: string buffer, ending with a CRLFCRLF
 	 * HttpReq* p: allocated HttpReq strucutre
-	 * returns: 0 if successfull, 1 if no method is found, 2 if no uri is found, 3 if no version is found.
+	 * returns: 0 if successfull, 1 if no method is found, 2 if no uri is found, 3 if no version is found, 4 if a invalid header is found.
 	 */
 	int status = 0;
 	char* save_ptr = NULL;
-	char* payload_cpy = malloc(strlen(payload) * sizeof(char));
-	assertZero(payload_cpy==NULL, "ERROR::initHttpReq::couldn't allocate array of size %d\n", (int) strlen(payload));
-	strcpy(payload_cpy, payload);
+	char* buffer_cpy = malloc(strlen(buffer) * sizeof(char));
+	strcpy(buffer_cpy, buffer);
 	// parse method
-	p->method = strtok_r(payload_cpy, " ", &save_ptr);
+	p->method = strtok_r(buffer_cpy, " ", &save_ptr);
 	if (p->method == NULL)
 		return 1;
 	// parse uri
@@ -465,28 +379,19 @@ int initHttpReq(HttpReq* p, const char* payload) {
 	p->version = strtok_r(NULL, CRLF, &save_ptr);
 	if (p->version == NULL)
 		return 3;
-	// parse headers and payload 
+	// parse headers and buffer 
 	int header_count = 0;
-	int content_length = -1;
-	while (1) {
-		char* header_tok = strtok_r(NULL, CRLF, &save_ptr);
-		if (header_tok == NULL)
-			break;
+	char* header_tok = strtok_r(NULL, CRLF, &save_ptr);
+	while (header_tok) {
 		Header* header = allocateHeader();
-		status = initHeader(header, header_tok);
-		if (status == 0) {
-			// add header to header list
-			header_count++;
-			p->headers = realloc(p->headers, header_count * sizeof(Header));
-			p->headers[header_count-1] = header;
-		} else {
-			// TODO if header is invalid it's assumed to be the payload
-			p->payload = header_tok;
-		}
+		if (initHeader(header, header_tok) != 0)
+			return 4;
+		header_count++;
+		p->headers = realloc(p->headers, header_count * sizeof(Header));
+		p->headers[header_count-1] = header;
+		header_tok = strtok_r(NULL, CRLF, &save_ptr);
 	}
-	// TODO Payload check at the end
 	p->header_count = header_count;
-	
 	return 0;
 }
 
@@ -612,6 +517,71 @@ int setPayloadHttpResp(HttpResp* resp, char* payload) {
 	return 0;
 }
 
+// http functions
+
+// http functions
+HttpReq* receiveHttpReq(char** buf_ptr, int sockfd) {
+	/* Fucntion: receiveHttpReq
+	 * ---------------------------
+	 *  receiveHttpReq receives an HTTP packet with a connected socket
+	 *  int sockfd: connected socket filedescriptor
+	 *  buffer: reallocatable string with size 0
+	 *  returns: 0 if successfull else 1
+	 *  onerror: if the connection is interrupted NULL is returned
+	 *
+	 */
+
+	char* buffer = malloc((BUFFERSIZE+1) * sizeof(char));
+	buffer[BUFFERSIZE] = '\0';
+	int size = 0;
+	char* header_end = NULL;
+	// receive info and headers
+	while (!header_end) {
+		int bytes_recv = recv(sockfd, buffer+size, BUFFERSIZE-size, 0);
+		assertOne(bytes_recv >= 0, "receiveHttp::recv::%s\n", strerror(errno));
+		if (bytes_recv == 0) {
+			LOG(LV_DEBUG, "receiveHttp::connection closed");
+			return NULL;
+		}
+		header_end = strstr(buffer+size, CRLFCRLF);
+		size += bytes_recv;
+		LOG(LV_DEBUG, "receiveHttpReq::received %d bytes", size);
+		assertOne(BUFFERSIZE > size, "receiveHttpReq::recv::buffer overflow");
+	}
+
+	memset(header_end, '|', CRLFCRLF_LEN);
+	HttpReq* req;
+	req->error = initHttpReq(req, buffer); 
+	if (strstr(buffer, "Content-Length"))
+		strncpy(req->payload, header_end+2, );
+
+	free(buffer);
+	return 0;
+}
+
+int sendHttpPayload(int sockfd, const char* buffer) {
+	/* Function: sendHttpPayload
+	 * ------------------------
+	 *  sends a http packet to the socket connected with the given socket
+	 *  int sockfd: connected scoket
+	 *  char* buffer: string buffer representing the HTTP packet to send
+	 *  int size: amount of bytes to send
+	 *  returns: 0
+	 *  onerror: 
+	 */
+	int status = 0;
+	int sum = 0;
+	int size = strlen(buffer);
+	while (sum < size) {
+		status = send(sockfd, buffer, size-sum, 0);
+		assertZero(status == -1, "ERRRO::sendHttpPayload %s\n", strerror(errno));
+		sum += status;
+	}
+	return 0;
+}
+
+
+
 // resource stuff
 typedef struct Resource_t {
 	char* path;
@@ -619,7 +589,7 @@ typedef struct Resource_t {
 } Resource;
 
 Resource* allocateResourceArray() {
-	return calloc(0, sizeof(Resource));
+	return calloc(1, sizeof(Resource));
 }
 
 int addResource(Resource* arr, int size, Resource r) {
