@@ -10,10 +10,14 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#define MAX_HTTP_BUFFER_SIZE 4084
+#define MAX_HTTP_HEADER_COUNT 100
+#define SEPARATOR "\r\n"
+#define SEPARATOR2 "\r\n\r\n"
 
 enum FLAGS {
-	SUCCESS,
-	ERROR,
+	SUCCESS=0,
+	ERROR=1,
 };
 
 enum HTTP_METHOD {
@@ -21,6 +25,7 @@ enum HTTP_METHOD {
 	PUT,
 	DELETE,
 };
+
 
 
 typedef struct Header {
@@ -34,25 +39,33 @@ typedef struct Request {
 	char* uri;
 	char* version;
 	int header_count;
-	Header* headers;
-	FLAGS flags;
+	Header* headers; // NULLable
+	char* payload; // NULLable
+	enum FLAGS flags;
 } Request;
 
 typedef struct Response {
 	char* version;
 	int status;
-	char* reason;
+	char* reason; // NULLable
 	int header_count;
-	Header* headers;
-	FLAGS flags;
+	Header* headers; // NULLable
+	char* payload; // NULLable
+	enum FLAGS flags;
 } Response;
 
 
-char* serializeRequest(Request* req);
-char* serializeResponse(Response* resp);
-Response* deserializeResponse(char* resp);
-Request* deserializeRequest(char* req);
+char*		serializeRequest	(Request* req);
+char*		serializeResponse	(Response* resp);
+Response*	deserializeResponse	(char* payload, char** nxtPacketPtr);
+Request*	deserializeRequest	(char* payload, char** nxtPacketPtr);
+void 		freeResponse		(Response* resp);
+void 		freeRequest		(Request* req);
 
+int 		findHeader		(Header* arr, Header* h);
+int 		setHeader 		(Header* arr, Header* h);
+int 		addHeader 		(Header* arr, Header* h);
+int 		removeHeader 		(Header* arr, int idx);
 
 #endif
 
