@@ -61,7 +61,7 @@ Response*	deserializeResponse	(char* payload, char** nxtPacketPtr);
 Request*	deserializeRequest	(char* payload, char** nxtPacketPtr);
 void 		freeResponse		(Response* resp);
 void 		freeRequest		(Request* req);
-
+// TODO implement
 int 		findHeader		(Header* arr, Header* h);
 int 		setHeader 		(Header* arr, Header* h);
 int 		addHeader 		(Header* arr, Header* h);
