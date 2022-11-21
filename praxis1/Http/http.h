@@ -1,14 +1,10 @@
 #ifndef WEBSERVER
 #define WEBSERVER
 
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
+#include <stdbool.h>
 
 #define MAX_HTTP_BUFFER_SIZE 4084
 #define MAX_HTTP_HEADER_COUNT 100
@@ -21,11 +17,11 @@ enum FLAGS {
 };
 
 enum HTTP_METHOD {
-	GET,
-	PUT,
-	DELETE,
+	INVALID	=-1,
+	GET	   ,
+	PUT	   ,
+	DELETE	   ,
 };
-
 
 
 typedef struct Header {
@@ -55,12 +51,23 @@ typedef struct Response {
 } Response;
 
 
-char*		serializeRequest	(Request* req);
-char*		serializeResponse	(Response* resp);
-Response*	deserializeResponse	(char* payload, char** nxtPacketPtr);
-Request*	deserializeRequest	(char* payload, char** nxtPacketPtr);
+
 void 		freeResponse		(Response* resp);
 void 		freeRequest		(Request* req);
+char*		serializeRequest	(Request* req);
+char*		serializeResponse	(Response* resp);
+enum HTTP_METHOD method2enum		(char* method);
+char* 		enum2method 		(enum HTTP_METHOD num);
+bool 		cmpRequest		(Request* a, Request* b);
+bool 		cmpResponse		(Response* a, Response* b);
+bool 		cmpHeader 		(Header* a, Header* b);
+Header* 	copyHeader 		(const Header* h);
+Request*	copyRequest		(const Request* r);
+Response*	copyResponse		(const Response* r);
+
+// TODO test
+Response*	deserializeResponse	(char* payload, char** nxtPacketPtr);
+Request*	deserializeRequest	(char* payload, char** nxtPacketPtr);
 // TODO implement
 int 		findHeader		(Header* arr, Header* h);
 int 		setHeader 		(Header* arr, Header* h);

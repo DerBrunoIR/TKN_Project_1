@@ -1,13 +1,35 @@
 #include "http.h"
 
 
-const int http_method_count = 3;
-const char* http_methods[] = {"GET", "PUT", "DELETE"};
+
+enum HTTP_METHOD method2enum(char* method) {
+	if (strcasecmp(method, "GET")==0)
+		return GET;
+	if (strcasecmp(method, "PUT")==0)
+		return PUT;
+	if (strcasecmp(method, "DELETE")==0)
+		return DELETE;
+	return INVALID;
+}
+
+char* enum2method(enum HTTP_METHOD num) {
+	switch(num) {
+		case GET:
+			return "GET";
+		case PUT:
+			return "PUT";
+		case DELETE:
+			return "DELETE";
+		default:
+			return "INVALID";
+	}
+}
+
 
 char* serializeRequest(Request* req) {
 	char* buffer = calloc(MAX_HTTP_BUFFER_SIZE, sizeof(char));
 	int size = 0;
-	size += snprintf(buffer+size, MAX_HTTP_BUFFER_SIZE, "%s %s %s%s", http_methods[req->method], req->uri, req->version, SEPARATOR);
+	size += snprintf(buffer+size, MAX_HTTP_BUFFER_SIZE, "%s %s %s%s", enum2method(req->method), req->uri, req->version, SEPARATOR);
 	for (int i = 0; i < req->header_count; i++)
 		size += snprintf(buffer+size, MAX_HTTP_BUFFER_SIZE, "%s:%s%s", req->headers[i].key, req->headers[i].val, SEPARATOR);
 	size += snprintf(buffer+size, MAX_HTTP_BUFFER_SIZE, "%s", SEPARATOR);
@@ -104,8 +126,8 @@ Response* deserializeResponse(char* payload, char** nxtPacketPtr) {
 	// payload
 	char* pyld = header_end + 4;
 	if (content_length > 0) {
-		resp->payload = malloc(strlen(pyld)*sizeof(char));
-		strcpy(resp->payload, pyld);
+		resp->payload = malloc(content_length*sizeof(char));
+		strncpy(resp->payload, pyld, content_length);
 	} else {
 		resp->payload = NULL;
 	}
@@ -129,11 +151,7 @@ Request* deserializeRequest(char* bytestream, char** nxtPacketPtr) {
 	// method
 	char* method = strtok(bytestream, " ");
 	if (method!=NULL) {
-		for (int i = 0; i < http_method_count; i++)
-			if (strcmp(http_methods[i], method)==0) {
-				req->method = i;
-				break;
-			}
+		req->method = method2enum(method);
 	} else {
 		flag |= ERROR;
 	}
@@ -198,8 +216,8 @@ Request* deserializeRequest(char* bytestream, char** nxtPacketPtr) {
 	// payload 
 	char* pyld = header_end + 4;
 	if (content_length > 0) {
-		req->payload = malloc(strlen(pyld)*sizeof(char));
-		strcpy(req->payload, pyld);
+		req->payload = malloc(content_length*sizeof(char));
+		strncpy(req->payload, pyld, content_length);
 	} else {
 		req->payload = NULL;
 	}
@@ -214,8 +232,10 @@ Request* deserializeRequest(char* bytestream, char** nxtPacketPtr) {
 
 
 void freeRequest(Request* req) {
-	free(req->uri);
-	free(req->version);
+	if (req->uri)
+		free(req->uri);
+	if (req->version)
+		free(req->version);
 	for (int i = 0; i < req->header_count;i++){
 		free(req->headers[i].key);
 		free(req->headers[i].val);
@@ -226,9 +246,12 @@ void freeRequest(Request* req) {
 		free(req->payload);
 	free(req);
 }
+
 void freeResponse(Response* resp){
-	free(resp->version);
-	free(resp->reason);
+	if (resp->version)
+		free(resp->version);
+	if (resp->reason)
+		free(resp->reason);
 	for (int i = 0; i < resp->header_count;i++){
 		free(resp->headers[i].key);
 		free(resp->headers[i].val);
@@ -238,8 +261,99 @@ void freeResponse(Response* resp){
 	if (resp->payload)
 		free(resp->payload);
 	free(resp);
-
 }
 
+bool cmpHeader(Header* a, Header* b) {
+	return (strcmp(a->key, b->key)==0)&&(strcmp(a->val, b->val)==0);
+}
 
+bool cmpRequest(Request* a, Request* b) {
+	if (a->header_count != b->header_count)
+		return false;
+	int headers = 0;
+	for (int i = 0; i < a->header_count; i++)
+		headers += cmpHeader(&a->headers[i], &b->headers[i]);
+	return headers==a->header_count \
+		&& a->flags==b->flags \
+		&& a->method == b->method \
+		&& strcasecmp(a->version, b->version)==0 \
+		&& strcmp(a->uri, b->uri)==0 \
+		&& strcmp(a->payload, b->payload)==0;
+}
 
+bool cmpResponse(Response* a, Response* b) {
+	if (a->header_count != b->header_count)
+		return false;
+	int headers = 0;
+	for (int i = 0; i < a->header_count; i++)
+		headers += cmpHeader(&a->headers[i], &b->headers[i]);
+	return headers==a->header_count \
+		&& a->flags==b->flags \
+		&& a->status == b->status \
+		&& strcasecmp(a->version, b->version)==0 \
+		&& strcasecmp(a->reason, b->reason)==0 \
+		&& strcmp(a->payload, b->payload)==0;
+}
+
+Header* copyHeader(const Header* h) {
+	Header* new = malloc(sizeof(Header));
+	if (h->key) {
+		new->key = malloc(strlen(h->key)*sizeof(char));
+		strcpy(new->key, h->key);
+	}
+	if (h->val) {
+		new->val = malloc(strlen(h->val)*sizeof(char));
+		strcpy(new->val, h->val);
+	}
+	return new;
+}
+
+Request* copyRequest(const Request* r) {
+	Request* new = malloc(sizeof(Request));
+	new->method = r->method;
+	if (r->uri) {
+		new->uri = malloc(strlen(r->uri)*sizeof(char));
+		strcpy(new->uri, r->uri);
+	}
+	if (r->version) {
+		new->version = malloc(strlen(r->version)*sizeof(char));
+		strcpy(new->version, r->version);
+	}
+	new->header_count = r->header_count;
+	if (r->headers) {
+		new->headers = malloc(new->header_count*sizeof(Header));
+		for (int i = 0; i < new->header_count; i++)
+			new->headers[i] = *copyHeader(&r->headers[i]);
+	}
+	if (r->payload) {
+		new->payload = malloc(strlen(r->payload)*sizeof(char));
+		strcpy(new->payload, r->payload);
+	}
+	new->flags = r->flags;
+	return new;
+}
+
+Response* copyResponse(const Response* r) {
+	Response* new = malloc(sizeof(Response));
+	if (r->version) {
+		new->version = malloc(strlen(r->version)*sizeof(char));
+		strcpy(new->version, r->version);
+	}
+	new->status = r->status;
+	if (r->reason) {
+		new->reason = malloc(strlen(r->reason)*sizeof(char));
+		strcpy(new->reason, r->reason);
+	}
+	new->header_count = r->header_count;
+	if (r->headers) {
+		new->headers = malloc(new->header_count*sizeof(Header));
+		for (int i = 0; i < new->header_count; i++)
+			new->headers[i] = *copyHeader(&r->headers[i]);
+	}
+	if (r->payload) {
+		new->payload = malloc(strlen(r->payload)*sizeof(char));
+		strcpy(new->payload, r->payload);
+	}
+	new->flags = r->flags;
+	return new;
+}
