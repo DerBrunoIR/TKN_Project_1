@@ -237,13 +237,23 @@ void TestInvalidRequests() {
 	char* ptr1;
 	Request* r = deserializeRequest(payload1, &ptr1);
 	assert((r->flags&ERROR)==1);
-	assert(r->method==INVALID);
+	assert(r->method==NONE);
 	assert(r->version==NULL);
 	assert(r->headers==NULL);
 	assert(r->payload==NULL);
 	assert(r->uri==NULL);
 	assert(r->header_count==0);
+}
 
+
+void TestFindHeader() {
+	// TODO
+}
+void TestsetHeader() {
+	// TODO
+}
+void TestRemoveHeader() {
+	// TODO
 }
 
 
@@ -254,14 +264,16 @@ int main() {
 	TestCopyResponse();
 	TestCopyHeader();
 	TestCopyRequest();
-
+	TestFindHeader();
+	TestsetHeader();
+	TestRemoveHeader();
 
 	// default objects
 	char default_payload[] = "don't trust cats";
 	int header_count = 3;
 	Header headers[] = {{"Content-Length"}};
 	Response response = {"HTTPS/1.1", 200, "OK", header_count, headers, default_payload};
-	Request request = {0, "/home/usr/passwd", "HTTPS/1.1", header_count, headers, default_payload};
+	Request request = {GET, "/home/usr/passwd", "HTTPS/1.1", header_count, headers, default_payload};
 	
 
 
@@ -270,7 +282,7 @@ int main() {
 	Header headers1[] = {{"Content-Type", "text/html"}, {"Content-Length", "30"},{"Foo", "Bar"}};
 	Response resp1 = {"HTTP/1.1", 200, "OK", 3, headers1, payload, 0};
 	char* payload_resp1 = "HTTP/1.1 200 OK\r\nContent-Type:text/html\r\nContent-Length:30\r\nFoo:Bar\r\n\r\nThis is an amazing payload!!!!";
-	Request req1 = {0, "/dir/file.txt", "HTTP/1.1", 3, headers1 ,payload, 0};
+	Request req1 = {GET, "/dir/file.txt", "HTTP/1.1", 3, headers1 ,payload, 0};
 	char* payload_req1 = "GET /dir/file.txt HTTP/1.1\r\nContent-Type:text/html\r\nContent-Length:30\r\nFoo:Bar\r\n\r\nThis is an amazing payload!!!!";
 
 	TestSerializeRequest(req1, payload_req1);
@@ -279,7 +291,7 @@ int main() {
 	TestDeserializationRequest(req1, payload_req1, 112);
 
 	// test minimal request
-	Request req2 = {1, "/", "HTTP/1.1", 0, NULL, 0};
+	Request req2 = {PUT, "/", "HTTP/1.1", 0, NULL, 0};
 	char* payload_req2 = "PUT / HTTP/1.1\r\n\r\n";
 	Response resp2 = {"HTTP/1.1", 204, "OK", 0, NULL, NULL, 0};
 	char* payload_resp2 = "HTTP/1.1 204 OK\r\n\r\n";
@@ -290,7 +302,7 @@ int main() {
 	TestDeserializationRequest(req2, payload_req2, strlen(payload_req2));
 
 	// test overlapping http packets without payload
-	Request req3 = {1, "/", "HTTP/1.1", 0, NULL, 0};
+	Request req3 = {PUT, "/", "HTTP/1.1", 0, NULL, 0};
 	Response resp3 = {"HTTP/1.1", 204, "OK", 0, NULL, NULL, 0};
 	char* payload_req3_out = "PUT / HTTP/1.1\r\n\r\n";
 	char* payload_resp3_out = "HTTP/1.1 204 OK\r\n\r\n";
@@ -306,7 +318,7 @@ int main() {
 	// test overlapping with payload
 	char payload4[] = "Don't trust cats"; // length=16
 	Header headers4[] = {{"Content-Length", "16"}, {"Javascript framework", " without Javascript"}};
-	Request req4 = {2, "/home/usr", "HTTP/9.2", 2, headers4, payload4, 0};
+	Request req4 = {DELETE, "/home/usr", "HTTP/9.2", 2, headers4, payload4, 0};
 	Response resp4 = {"HTTP/9.2", 123, "HUNGRY", 2, headers4, payload4, 0};
 	char payload_req4_in[] = \
 		"delete /home/usr HTTP/9.2\r\nContent-Length:16\r\nJavascript framework: without Javascript\r\n\r\nDon't trust cats"\

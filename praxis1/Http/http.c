@@ -9,7 +9,7 @@ enum HTTP_METHOD method2enum(char* method) {
 		return PUT;
 	if (strcasecmp(method, "DELETE")==0)
 		return DELETE;
-	return INVALID;
+	return NONE;
 }
 
 char* enum2method(enum HTTP_METHOD num) {
@@ -21,7 +21,7 @@ char* enum2method(enum HTTP_METHOD num) {
 		case DELETE:
 			return "DELETE";
 		default:
-			return "INVALID";
+			return "NONE";
 	}
 }
 
@@ -136,6 +136,8 @@ Response* deserializeResponse(char* payload, char** nxtPacketPtr) {
 		*nxtPacketPtr = pyld + content_length;
 	else 
 		*nxtPacketPtr = pyld;
+	// flag
+	resp->flags = flag;
 
 	return resp;
 }
@@ -226,6 +228,8 @@ Request* deserializeRequest(char* bytestream, char** nxtPacketPtr) {
 		*nxtPacketPtr = pyld + content_length;
 	else 
 		*nxtPacketPtr = pyld;
+	// flag
+	req->flags = flag;
 
 	return req;
 }
@@ -356,4 +360,44 @@ Response* copyResponse(const Response* r) {
 	}
 	new->flags = r->flags;
 	return new;
+}
+
+
+int findHeaderByKey(Header* arr, int size, Header* h) {
+	for (int i = 0; i < size; i++) {
+		if (strcmp(arr[i].key, h->key)==0)
+			return i;
+	}
+	return -1;
+}
+
+int findHeaderByVal(Header* arr, int size, Header* h) {
+	for (int i = 0; i < size; i++) {
+		if (strcmp(arr[i].val, h->val)==0)
+			return i;
+	}
+	return -1;
+}
+
+int setHeader (Header** arr_ptr, int size, Header h){
+	Header* arr = *arr_ptr;
+	int idx = findHeaderByKey(arr, size, &h);
+	if (idx >= 0) {
+		arr[idx].val = h.val;
+	} else {
+		*arr_ptr = realloc(*arr_ptr, ++size*sizeof(Header));
+		arr = *arr_ptr;
+		arr[size-1] = h;
+	}
+	return 0;
+}
+
+int removeHeader (Header** arr_ptr, int size, int idx) {
+	Header* arr = *arr_ptr;
+	if (idx < 0 || size >= idx)
+		return -1;
+	for (int i = idx; i < size-1; i++)
+		arr[i] = arr[i+1];
+	*arr_ptr = realloc(*arr_ptr, --size * sizeof(Header));
+	return 0;
 }

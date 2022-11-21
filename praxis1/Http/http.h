@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define MAX_HTTP_BUFFER_SIZE 4084
+#define MAX_HTTP_BUFFER_SIZE 4096
 #define MAX_HTTP_HEADER_COUNT 100
 #define SEPARATOR "\r\n"
 #define SEPARATOR2 "\r\n\r\n"
@@ -17,10 +17,22 @@ enum FLAGS {
 };
 
 enum HTTP_METHOD {
-	INVALID	=-1,
+	NONE	   ,
 	GET	   ,
 	PUT	   ,
 	DELETE	   ,
+};
+
+enum HTTP_STATUS {
+	OK 			= 200,
+	CREATED 		= 201,
+	ACCEPTED 		= 202,
+	NO_CONTENT 		= 204,
+	MOVED_PERMANENTLY 	= 301,
+	BAD_REQUEST 		= 400,
+	FORBIDDEN 		= 403,
+	NOT_FOUND 		= 404,
+	INTERNAL_SERVER_ERROR 	= 500,
 };
 
 
@@ -35,44 +47,46 @@ typedef struct Request {
 	char* uri;
 	char* version;
 	int header_count;
-	Header* headers; // NULLable
-	char* payload; // NULLable
+	Header* headers; 	// NULLable
+	char* payload; 		// NULLable
 	enum FLAGS flags;
 } Request;
 
 typedef struct Response {
 	char* version;
 	int status;
-	char* reason; // NULLable
+	char* reason; 		// NULLable
 	int header_count;
-	Header* headers; // NULLable
-	char* payload; // NULLable
+	Header* headers; 	// NULLable
+	char* payload; 		// NULLable
 	enum FLAGS flags;
 } Response;
 
-
-
-void 		freeResponse		(Response* resp);
-void 		freeRequest		(Request* req);
+// TODO documentation
+// high level
+Response*	deserializeResponse	(char* payload, char** nxtPacketPtr);
+Request*	deserializeRequest	(char* payload, char** nxtPacketPtr);
 char*		serializeRequest	(Request* req);
 char*		serializeResponse	(Response* resp);
-enum HTTP_METHOD method2enum		(char* method);
-char* 		enum2method 		(enum HTTP_METHOD num);
+void 		freeResponse		(Response* resp);
+void 		freeRequest		(Request* req);
+// compare
 bool 		cmpRequest		(Request* a, Request* b);
 bool 		cmpResponse		(Response* a, Response* b);
 bool 		cmpHeader 		(Header* a, Header* b);
+// deep copies
 Header* 	copyHeader 		(const Header* h);
 Request*	copyRequest		(const Request* r);
 Response*	copyResponse		(const Response* r);
+// utility
+enum HTTP_METHOD method2enum		(char* method);
+char* 		enum2method 		(enum HTTP_METHOD num);
 
 // TODO test
-Response*	deserializeResponse	(char* payload, char** nxtPacketPtr);
-Request*	deserializeRequest	(char* payload, char** nxtPacketPtr);
-// TODO implement
-int 		findHeader		(Header* arr, Header* h);
-int 		setHeader 		(Header* arr, Header* h);
-int 		addHeader 		(Header* arr, Header* h);
-int 		removeHeader 		(Header* arr, int idx);
+int 		findHeaderByKey		(Header* arr, int size, Header* h);
+int 		findHeaderByVal		(Header* arr, int size, Header* h);
+int 		setHeader 		(Header** arr, int size, Header h);
+int 		removeHeader 		(Header** arr, int size, int idx);
 
 #endif
 
