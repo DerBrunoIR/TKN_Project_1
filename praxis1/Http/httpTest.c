@@ -254,19 +254,41 @@ void TestInvalidRequests() {
 void TestFindHeader() {
 	Header a[] = {{"abc1", "abc2"}, {"def1", "def2"}};
 	int count = 2;
-	Header b = {"abc1", "abc1"};
-	Header c = {"def", "def2"};
+	Header b = {"abc1", "def2"};
+	Header c = {"def", "uuuu"};
 	assert(findHeaderByKey(a, count, &b)==0);
 	assert(findHeaderByKey(a, count, &c)==-1);
 	assert(findHeaderByVal(a, count, &c)==-1);
-	assert(findHeaderByVal(a, count, &b)==2);
+	assert(findHeaderByVal(a, count, &b)==1);
 
 }
 
 void TestsetHeader() {
+	Header b = {"abc1", "abc1"};
+	Header c = {"abc1", "xxx"};
+	Response resp = {0};
+	assert(0==setHeader(&resp.headers, &resp.header_count, b));
+	assert(resp.header_count==1);
+	assert(strcmp(resp.headers[0].key, "abc1")==0);
+	assert(strcmp(resp.headers[0].val, "abc1")==0);
+	assert(0==setHeader(&resp.headers, &resp.header_count, c));
+	assert(resp.header_count==1);
+	assert(strcmp(resp.headers[0].key, "abc1")==0);
+	assert(strcmp(resp.headers[0].val, "xxx")==0);
+
+	Request req = {0};
+	assert(0==setHeader(&req.headers, &req.header_count, b));
+	assert(req.header_count==1);
+	assert(strcmp(req.headers[0].key, "abc1")==0);
+	assert(strcmp(req.headers[0].val, "abc1")==0);
+	assert(0==setHeader(&req.headers, &req.header_count, c));
+	assert(req.header_count==1);
+	assert(strcmp(req.headers[0].key, "abc1")==0);
+	assert(strcmp(req.headers[0].val, "xxx")==0);
 }
 
 void TestRemoveHeader() {
+
 }
 
 
@@ -277,11 +299,9 @@ int main() {
 	TestCopyResponse();
 	TestCopyHeader();
 	TestCopyRequest();
-	/*j
 	TestFindHeader();
 	TestsetHeader();
 	TestRemoveHeader();
-	*/
 
 	// default objects
 	char default_payload[] = "don't trust cats";
