@@ -637,6 +637,8 @@ void printPayload(const char* payload) {
 
 // main 
 int main(int argc, char** argv) {
+	int a = 1;
+
 	// init arguemnts
 	int status = 0;
 	char* port;
