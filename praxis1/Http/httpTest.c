@@ -243,17 +243,30 @@ void TestInvalidRequests() {
 	assert(r->payload==NULL);
 	assert(r->uri==NULL);
 	assert(r->header_count==0);
+
+	char payload2[] = "Request\r\nReqeusts\r\n2\r\n\r\n";
+	char* ptr2;
+	Request* r2 = deserializeRequest(payload1, &ptr2);
+	assert(r2 == NULL);
 }
 
 
 void TestFindHeader() {
-	// TODO
+	Header a[] = {{"abc1", "abc2"}, {"def1", "def2"}};
+	int count = 2;
+	Header b = {"abc1", "abc1"};
+	Header c = {"def", "def2"};
+	assert(findHeaderByKey(a, count, &b)==0);
+	assert(findHeaderByKey(a, count, &c)==-1);
+	assert(findHeaderByVal(a, count, &c)==-1);
+	assert(findHeaderByVal(a, count, &b)==2);
+
 }
+
 void TestsetHeader() {
-	// TODO
 }
+
 void TestRemoveHeader() {
-	// TODO
 }
 
 
@@ -264,9 +277,11 @@ int main() {
 	TestCopyResponse();
 	TestCopyHeader();
 	TestCopyRequest();
+	/*j
 	TestFindHeader();
 	TestsetHeader();
 	TestRemoveHeader();
+	*/
 
 	// default objects
 	char default_payload[] = "don't trust cats";
